@@ -128,9 +128,25 @@ class SocketTCP:
     def _log_tx(self, segment_byte: bytes):
         if self.debug:
             sd = self.parse_segment(segment_byte)
-            self._log(f'TX syn={sd['syn']} ack={sd['ack']} fin={sd['fin']} seq={sd['seq']} bytes={len(sd['data'])}')
+
+            flags = {
+                "SYN": sd['syn'],
+                "ACK": sd['ack'],
+                "FIN": sd['fin']
+            }
+            flags_enabled = "+".join(name for name, enabled in flags.items() if enabled)
+        
+            self._log(f"TX: {flags_enabled:<12} seq={sd['seq']:<11} bytes={len(sd['data'])}")
 
     def _log_rx(self, segment_dict: bytes):
         if self.debug:
             sd = segment_dict
-            self._log(f'RX syn={sd['syn']} ack={sd['ack']} fin={sd['fin']} seq={sd['seq']} bytes={len(sd['data'])}')
+
+            flags = {
+                "SYN": sd['syn'],
+                "ACK": sd['ack'],
+                "FIN": sd['fin']
+            }
+            flags_enabled = "+".join(name for name, enabled in flags.items() if enabled)
+        
+            self._log(f"RX: {flags_enabled:<12} seq={sd['seq']:<11} bytes={len(sd['data'])}")
