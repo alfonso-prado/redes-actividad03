@@ -1,10 +1,15 @@
+import socket
+import random
+
 class SocketTCP:
-    TIMEOUT = 0.5   
+    TIMEOUT = 1 
     MAX_DATA_SIZE = 16 # Máximo de datos por segmento, 16 bytes
     HEADER_SIZE = 7 # 3 flags de 1 byte + SEQ de 4 bytes.
-    MESSAGE_SIZE = HEADER_SIZE + MAX_DATA_SIZE
+    SEGMENT_SIZE = HEADER_SIZE + MAX_DATA_SIZE
 
     def __init__(self):
+        self.socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+
         # Estas direcciones pueden corresponder al cliente o al servidor,
         # dependiendo de quién esté utilizando el socket.
         self.my_address = None # (IP, PUERTO)
@@ -12,7 +17,85 @@ class SocketTCP:
 
         self.seq = None 
 
-        self.handshake = False 
+        self.handshake = False
+
+        # debug
+        self.debug = True
+
+    # Server
+    def bind(self, address):
+        self.socket.bind(address)
+        self.my_address = self.socket.getsockname()
+
+    # version simplificada que asume que no hay perdida
+    # pero se tiene que verificar que el contenido sea el esperado para 
+    # seguir avanzando
+    # CASO FELIZ =)
+
+    # Client
+    def connect(self, address):
+        self.remote_address = address
+
+        # TX: SYN, seq=x
+        x = random.randint(0, 100)
+        syn = { 'syn':True, 'seq': x }
+        self._tx(address, syn)
+
+        while True:
+            # RX: SYN+ACK, seq=x+1
+            syn_ack, sender_address = self._rx(get_address=True) # Recibimos nueva address para comunicación con el servidor
+            if SocketTCP._match_flags(syn_ack, syn=True, ack=True) and syn_ack['seq'] == (x + 1) and not syn_ack['data']:
+                self.remote_address = sender_address
+                self.handshake = True
+                break
+
+        # TX: ACK, SEQ=x+2
+        ack = { 'ack':True, 'seq': x + 2}
+        self._tx(self.remote_address, ack)
+
+    # Server
+    def accept(self):
+        # RX: SYN, seq=x
+        while True:
+            syn, receiver_address = self._rx(get_address=True)
+            if SocketTCP._match_flags(syn, syn=True) and not syn['data']:
+                break
+        x = syn['seq']
+
+        # crear nuevo socket para la comunicacion con el cliente, no se usa el socket principal
+        new_socket = SocketTCP()
+        host = self.my_address[0]
+        new_socket.bind((host, 0)) # con 0 le digo al sistema que me de un puerto libre
+        new_socket.remote_address = receiver_address # guardamos la direccion del cliente en el nuevo socket
+
+        # TX: SYN+ACK, seq=x+1
+        syn_ack = {
+            'syn':True, 
+            'ack':True, 
+            'seq': x + 1
+        }
+        new_socket._tx(receiver_address, syn_ack)
+
+        while True:
+            # RX: ACK, seq=x+1
+            ack = new_socket._rx()
+            if SocketTCP._match_flags(ack, ack = True) and not ack['data'] and ack['seq'] == (x + 2) :
+                self.handshake = True
+                return new_socket, new_socket.remote_address
+
+
+    def _tx(self, address, segment: dict):
+        segment_byte = SocketTCP.create_segment(**segment)
+        self.socket.sendto(segment_byte, address)
+        self._log_tx(segment_byte)
+
+    def _rx(self, get_address=False):
+        segment_byte, address = self.socket.recvfrom(self.SEGMENT_SIZE)
+        segment_dict = SocketTCP.parse_segment(segment_byte)
+        self._log_rx(segment_dict)
+        if get_address:
+            return segment_dict, address
+        return segment_dict
 
     @staticmethod
     def create_segment(syn: bool = False, ack: bool = False, fin: bool = False, seq=0, data: bytes = b'') -> bytes:
@@ -27,5 +110,27 @@ class SocketTCP:
             'ack': bool(segment[1]),
             'fin': bool(segment[2]),
             'seq': int.from_bytes(segment[3:SocketTCP.HEADER_SIZE], 'big'), # 4 bytes
-            'data': segment[SocketTCP.HEADER_SIZE:SocketTCP.MESSAGE_SIZE], # MAX 16 bytes. En el caso que se pase de los 16bytes, ignora el resto
+            'data': segment[SocketTCP.HEADER_SIZE:SocketTCP.SEGMENT_SIZE], # MAX 16 bytes. En el caso que se pase de los 16bytes, ignora el resto
         }
+
+    @staticmethod
+    def _match_flags(segment_dict: dict, syn=False, ack=False, fin=False) -> bool:
+        return (
+            segment_dict['syn'] == syn and
+            segment_dict['ack'] == ack and
+            segment_dict['fin'] == fin
+        )
+
+    def _log(self, text):
+        if self.debug:
+            print(text)
+
+    def _log_tx(self, segment_byte: bytes):
+        if self.debug:
+            sd = self.parse_segment(segment_byte)
+            self._log(f'TX syn={sd['syn']} ack={sd['ack']} fin={sd['fin']} seq={sd['seq']} bytes={len(sd['data'])}')
+
+    def _log_rx(self, segment_dict: bytes):
+        if self.debug:
+            sd = segment_dict
+            self._log(f'RX syn={sd['syn']} ack={sd['ack']} fin={sd['fin']} seq={sd['seq']} bytes={len(sd['data'])}')
