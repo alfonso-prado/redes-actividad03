@@ -305,6 +305,20 @@ class SocketTCP:
                 if segment is None:
                     segment = self._rx()
 
+                # Si segment['seq'] < self.seq  -> no almacenar nada, solo reenviar ACK. 
+                # Caso de segmento duplicado
+                if self._match_flags(segment) and segment['seq'] < self.seq:
+                    # TX: Reenviar el último ACK
+                    ack = {
+                        'ack': True,
+                        'seq': self.seq
+                    }
+                    self._tx(self.remote_address, ack)
+                    segment = None
+                    continue
+
+                # Si segment['seq'] == self.seq -> recibe segmento esperado.
+                # Caso de segmento que estamos esperando
                 if self._match_flags(segment) and segment['seq'] == self.seq and segment['data']:
                     new_seq = segment['seq'] + len(segment['data'])
 
