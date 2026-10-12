@@ -9,6 +9,7 @@ class SocketTCP:
 
     def __init__(self):
         self.socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        self.socket.settimeout(self.TIMEOUT)
 
         # Estas direcciones pueden corresponder al cliente o al servidor,
         # dependiendo de quién esté utilizando el socket.
@@ -37,31 +38,41 @@ class SocketTCP:
         self.role = 'client'
         self.remote_address = address
 
-        # TX: SYN, seq=x
         x = random.randint(0, 100)
-        syn = { 'syn':True, 'seq': x }
-        self._tx(address, syn)
 
-        while True:
-            # RX: SYN+ACK, seq=x+1
-            syn_ack, sender_address = self._rx(get_address=True) # Recibimos nueva address para comunicación con el servidor
-            if SocketTCP._match_flags(syn_ack, syn=True, ack=True) and syn_ack['seq'] == (x + 1) and not syn_ack['data']:
-                self.remote_address = sender_address
-                self.conected = True
-                break
+        while True:       
+            # TX: SYN, seq=x
+            syn = { 'syn':True, 'seq': x }
+            self._tx(address, syn)
 
-        # TX: ACK, SEQ=x+2
-        ack = { 'ack':True, 'seq': x + 2}
-        self.seq = ack['seq']
-        self._tx(self.remote_address, ack)
+            try:
+                # RX: SYN+ACK, seq=x+1
+                while True:
+                    syn_ack, receive_address = self._rx(get_address=True) # Recibimos nueva address para comunicación con el servidor
+                    if SocketTCP._match_flags(syn_ack, syn=True, ack=True) and syn_ack['seq'] == (x + 1) and not syn_ack['data']:
+                        self.remote_address = receive_address
+                        
+                        break
+            except socket.timeout:
+                continue
+
+            # TX: ACK, SEQ=x+2
+            ack = { 'ack':True, 'seq': x + 2}
+            self.seq = ack['seq']
+            self._tx(self.remote_address, ack)
+            self.conected = True
+            break
 
     # Server
     def accept(self):
         # RX: SYN, seq=x
         while True:
-            syn, receiver_address = self._rx(get_address=True)
-            if SocketTCP._match_flags(syn, syn=True) and not syn['data']:
-                break
+            try:
+                syn, receiver_address = self._rx(get_address=True)
+                if SocketTCP._match_flags(syn, syn=True) and not syn['data']:
+                    break
+            except socket.timeout:
+                continue
         x = syn['seq']
 
         # crear nuevo socket para la comunicacion con el cliente, no se usa el socket principal
@@ -70,21 +81,34 @@ class SocketTCP:
         new_socket.bind((host, 0)) # con 0 le digo al sistema que me de un puerto libre
         new_socket.remote_address = receiver_address # guardamos la direccion del cliente en el nuevo socket
 
-        # TX: SYN+ACK, seq=x+1
+        # Crea segmento SYN+ACK, seq=x+1
         syn_ack = {
             'syn':True, 
             'ack':True, 
             'seq': x + 1
         }
-        new_socket._tx(receiver_address, syn_ack)
 
         while True:
-            # RX: ACK, seq=x+1
-            ack = new_socket._rx()
-            if SocketTCP._match_flags(ack, ack = True) and not ack['data'] and ack['seq'] == (x + 2) :
-                new_socket.conected = True
-                new_socket.seq = ack['seq']
-                return new_socket, new_socket.remote_address
+            # TX: SYN+ACK, seq=x+1
+            new_socket._tx(receiver_address, syn_ack)
+
+            try:
+                while True:
+                    segment = new_socket._rx()
+                    # RX: ACK, seq=x+2
+                    if SocketTCP._match_flags(segment, ack = True) and segment['seq'] == (x + 2) and not segment['data'] :
+                        new_socket.conected = True
+                        new_socket.seq = segment['seq']
+                        return new_socket, new_socket.my_address
+                    # Caso de borde si se pierde ACK
+                    elif new_socket._match_flags(segment) and segment['seq'] == (x + 2) and segment['data']:
+                        new_socket.seq = segment['seq']
+                        message_length = new_socket._receive_message_length(segment)
+                        new_socket.remaining_bytes = message_length 
+                        new_socket.conected = True
+                        return new_socket, new_socket.my_address
+            except socket.timeout:
+                continue
 
     # Client
     def send(self, message: bytes):
@@ -274,11 +298,12 @@ class SocketTCP:
                 # correcto
 
     # Server
-    def _receive_message_length(self) -> int:
+    def _receive_message_length(self, segment=None) -> int:
         while True:
             try:
                 # RX: seq=y, data=message_length 
-                segment = self._rx()
+                if segment is None:
+                    segment = self._rx()
 
                 if self._match_flags(segment) and segment['seq'] == self.seq and segment['data']:
                     new_seq = segment['seq'] + len(segment['data'])
@@ -294,6 +319,10 @@ class SocketTCP:
                     self.seq = new_seq
 
                     return message_length
+
+                # Si el segmento no es el esperado,
+                # esperamos uno nuevo
+                segment = None
             except socket.timeout:
                 continue
 
