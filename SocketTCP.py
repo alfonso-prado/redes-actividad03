@@ -345,28 +345,32 @@ class SocketTCP:
         if self.debug:
             sd = self.parse_segment(segment_byte)
 
-            flags = {
+            flags_enabled = {
                 "SYN": sd['syn'],
                 "ACK": sd['ack'],
                 "FIN": sd['fin']
             }
-            flags_enabled = "+".join(name for name, enabled in flags.items() if enabled)
-            if not flags_enabled:
-                flags_enabled = f"NO FLAGS"
+            flags = "+".join(name for name, enabled in flags_enabled.items() if enabled) 
+            if not flags and sd['data']:
+                flags = f"DATA"
+            elif not flags:
+                flags = f"NO FLAGS"
         
-            self._log(f"TX: {flags_enabled:<12} seq={sd['seq']:<11} bytes={len(sd['data'])}")
+            self._log(f"TX: {flags:<12} seq={sd['seq']:<11} bytes={len(sd['data'])}")
 
     def _log_rx(self, segment_dict: bytes):
         if self.debug:
             sd = segment_dict
 
-            flags = {
+            flags_enabled = {
                 "SYN": sd['syn'],
                 "ACK": sd['ack'],
                 "FIN": sd['fin']
             }
-            flags_enabled = "+".join(name for name, enabled in flags.items() if enabled) 
-            if not flags_enabled:
-                flags_enabled = f"NO FLAGS"
+            flags = "+".join(name for name, enabled in flags_enabled.items() if enabled) 
+            if not flags and sd['data']:
+                flags = f"DATA"
+            elif not flags:
+                flags = f"NO FLAGS"
         
-            self._log(f"RX: {flags_enabled:<12} seq={sd['seq']:<11} bytes={len(sd['data'])}")
+            self._log(f"RX: {flags:<12} seq={sd['seq']:<11} bytes={len(sd['data'])}")
