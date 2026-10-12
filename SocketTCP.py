@@ -86,6 +86,7 @@ class SocketTCP:
                 new_socket.seq = ack['seq']
                 return new_socket, new_socket.remote_address
 
+    # Client
     def send(self, message: bytes):
         self._send_message_length(message)
 
@@ -113,7 +114,7 @@ class SocketTCP:
                 except socket.timeout:
                     continue  # Si hay timeout se reenvia el paquete anterior
 
-
+    # Server
     def recv(self, buff_size: int) -> bytes:
         if buff_size < 0:
             raise ValueError("buff_size no puede ser negativo")
@@ -184,6 +185,61 @@ class SocketTCP:
 
         return message_received
 
+    def close(self):
+        z = self.seq
+
+        # TX: FIN, seq=z
+        fin = {
+            'fin': True,
+            'seq': z
+        }
+        self._tx(self.remote_address, fin)
+
+        # RX: ACK, seq=z+1
+        while True:
+            segment = self._rx()
+
+            if (self._match_flags(segment, ack=True, fin=True) and segment['seq'] == z + 1 and not segment['data']):
+                break
+
+        # TX: ACK, seq=z+2
+        ack = {
+            'ack': True,
+            'seq': z + 2
+        }
+        self._tx(self.remote_address, ack)
+
+        self.conected = False
+        self.socket.close()
+
+    def recv_close(self):
+        z = self.seq
+
+        # RX: FIN, seq=z
+        while True:
+            segment = self._rx()
+
+            if (self._match_flags(segment, fin=True) and segment['seq'] == z and not segment['data']):
+                break
+
+        # TX: FIN+ACK, seq=z+1
+        ack = {
+            'ack': True,
+            'fin': True,
+            'seq': z + 1
+        }
+        self._tx(self.remote_address, ack)
+
+        # RX: ACK, seq=z+2
+        while True:
+            segment = self._rx()
+
+            if (self._match_flags(segment, ack=True) and segment['seq'] == z + 2 and not segment['data']):
+                break
+
+        self.conected = False
+        self.socket.close()
+
     # Client
     def _send_message_length(self, message: bytes):
         # Obs: El tamaño máximo teórico de un archivo en bytes que se puede enviar 
@@ -217,7 +273,6 @@ class SocketTCP:
                 # nuevo el segmento y espera por que llegue el ACK
                 # correcto
 
-
     # Server
     def _receive_message_length(self) -> int:
         while True:
@@ -241,7 +296,6 @@ class SocketTCP:
                     return message_length
             except socket.timeout:
                 continue
-            
 
     def _tx(self, address, segment: dict):
         segment_byte = SocketTCP.create_segment(**segment)

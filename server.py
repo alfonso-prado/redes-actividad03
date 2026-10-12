@@ -12,3 +12,5 @@ while True:
 
     if len(data) < 19:
         break
+
+connection.recv_close()

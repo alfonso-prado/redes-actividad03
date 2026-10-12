@@ -10,3 +10,5 @@ client_socketTCP.connect((host, puerto))
 data = sys.stdin.buffer.read()
 
 client_socketTCP.send(data)
+
+client_socketTCP.close()
