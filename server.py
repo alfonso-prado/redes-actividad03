@@ -1,5 +1,14 @@
 import SocketTCP
+import sys
 
-server_socketTCP = SocketTCP.SocketTCP()
-server_socketTCP.bind(('localhost', 8000))
-connection_socketTCP, new_address = server_socketTCP.accept()
+server = SocketTCP.SocketTCP()
+server.bind(('localhost', 8000))
+
+connection, address = server.accept()
+
+while True:
+    data = connection.recv(19)
+    sys.stdout.buffer.write(data)
+
+    if len(data) < 19:
+        break
