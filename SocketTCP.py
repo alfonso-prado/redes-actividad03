@@ -51,10 +51,10 @@ class SocketTCP:
                 while True:
                     syn_ack, receive_address = self._rx(get_address=True) # Recibimos nueva address para comunicación con el servidor
                     if SocketTCP._match_flags(syn_ack, syn=True, ack=True) and syn_ack['seq'] == (x + 1) and not syn_ack['data']:
-                        self.remote_address = receive_address
-                        
+                        self.remote_address = receive_address                    
                         break
             except socket.timeout:
+                self._log(f"RX: TIMEOUT")
                 continue
 
             # TX: ACK, SEQ=x+2
@@ -73,6 +73,7 @@ class SocketTCP:
                 if SocketTCP._match_flags(syn, syn=True) and not syn['data']:
                     break
             except socket.timeout:
+                self._log(f"RX: TIMEOUT")
                 continue
         x = syn['seq']
 
@@ -109,6 +110,7 @@ class SocketTCP:
                         new_socket.conected = True
                         return new_socket, new_socket.my_address
             except socket.timeout:
+                self._log(f"RX: TIMEOUT")
                 continue
 
     # Client
@@ -137,6 +139,7 @@ class SocketTCP:
                             break
                     break  # enviar el siguiente segmento
                 except socket.timeout:
+                    self._log(f"RX: TIMEOUT")
                     continue  # Si hay timeout se reenvia el paquete anterior
 
     # Server
@@ -193,6 +196,7 @@ class SocketTCP:
                     }
                     self._tx(self.remote_address, ack)
             except socket.timeout:
+                self._log(f"RX: TIMEOUT")
                 continue
 
         # saca solamente los bytes requeridos
@@ -238,6 +242,7 @@ class SocketTCP:
                             time.sleep(self.TIMEOUT)
                     break
             except socket.timeout:
+                self._log(f"RX: TIMEOUT")
                 n_timeout += 1
                 
                 if n_timeout < 3:
@@ -282,6 +287,7 @@ class SocketTCP:
                     self._tx(self.remote_address, ack)
 
             except socket.timeout:
+                self._log(f"RX: TIMEOUT")
                 if waiting_ack:
                     n_timeout += 1
                     
@@ -316,6 +322,7 @@ class SocketTCP:
                         self.seq = expected_seq
                         return
             except socket.timeout:
+                self._log(f"RX: TIMEOUT")
                 continue # Se repite todo el proceso de nuevo
                 # Si no llega el ACK (timeout) entonce envia de 
                 # nuevo el segmento y espera por que llegue el ACK
@@ -362,6 +369,7 @@ class SocketTCP:
                 # esperamos uno nuevo
                 segment = None
             except socket.timeout:
+                self._log(f"RX: TIMEOUT")
                 continue
 
     def _tx(self, address, segment: dict):
