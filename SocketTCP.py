@@ -1,5 +1,6 @@
 import socket
 import random
+import time
 
 class SocketTCP:
     TIMEOUT = 1 
@@ -218,20 +219,30 @@ class SocketTCP:
             'seq': z
         }
         self._tx(self.remote_address, fin)
+        
+        n_timeout = 0
+        while n_timeout < 3:
+            try:
+                # RX: ACK, seq=z+1
+                segment = self._rx()
 
-        # RX: ACK, seq=z+1
-        while True:
-            segment = self._rx()
-
-            if (self._match_flags(segment, ack=True, fin=True) and segment['seq'] == z + 1 and not segment['data']):
-                break
-
-        # TX: ACK, seq=z+2
-        ack = {
-            'ack': True,
-            'seq': z + 2
-        }
-        self._tx(self.remote_address, ack)
+                if (self._match_flags(segment, ack=True, fin=True) and segment['seq'] == z + 1 and not segment['data']):
+                    for i in range(3):
+                        # TX: ACK, seq=z+2
+                        ack = {
+                            'ack': True,
+                            'seq': z + 2
+                        }
+                        self._tx(self.remote_address, ack)
+                        if i < 2:
+                            time.sleep(self.TIMEOUT)
+                    break
+            except socket.timeout:
+                n_timeout += 1
+                
+                if n_timeout < 3:
+                    # TX: FIN, seq=z
+                    self._tx(self.remote_address, fin)
 
         self.conected = False
         self.socket.close()
@@ -239,28 +250,41 @@ class SocketTCP:
     def recv_close(self):
         z = self.seq
 
-        # RX: FIN, seq=z
-        while True:
-            segment = self._rx()
+        waiting_ack = False
+        n_timeout = 0
+        while n_timeout < 3:
+            try:
+                segment = self._rx()
 
-            if (self._match_flags(segment, fin=True) and segment['seq'] == z and not segment['data']):
-                break
+                # RX: FIN, seq=z
+                if (self._match_flags(segment, fin=True) and segment['seq'] == z and not segment['data']):
+                    waiting_ack = True
+                    # TX: FIN+ACK, seq=z+1
+                    fin_ack = {
+                        'ack': True,
+                        'fin': True,
+                        'seq': z + 1
+                    }
+                    self._tx(self.remote_address, fin_ack)
+               # RX: ACK, seq=z+2
+                elif (waiting_ack and self._match_flags(segment, ack=True) and segment['seq'] == z + 2 and not segment['data']):   
+                    break
+                # puede pasar el caso que se perdio el ultimo ACK de recv()
+                # esto sucede porque el cliente puede retransmitir un segmento (DATA)
+                # mientras esperamos FIN
+                # RX: seq=y, length=len(data)
+                elif (self._match_flags(segment) and segment['seq'] < z and segment['data']):
+                    # TX: ACK, seq=y + len(data)
+                    ack = {
+                        'ack': True,
+                        'seq': z
+                    }
+                    self._tx(self.remote_address, ack)
 
-        # TX: FIN+ACK, seq=z+1
-        ack = {
-            'ack': True,
-            'fin': True,
-            'seq': z + 1
-        }
-        self._tx(self.remote_address, ack)
-
-        # RX: ACK, seq=z+2
-        while True:
-            segment = self._rx()
-
-            if (self._match_flags(segment, ack=True) and segment['seq'] == z + 2 and not segment['data']):
-                break
-
+            except socket.timeout:
+                if waiting_ack:
+                    n_timeout += 1
+                    
         self.conected = False
         self.socket.close()
 
