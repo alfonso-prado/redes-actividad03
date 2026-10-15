@@ -73,7 +73,6 @@ class SocketTCP:
                 if SocketTCP._match_flags(syn, syn=True) and not syn['data']:
                     break
             except socket.timeout:
-                self._log(f"RX: TIMEOUT")
                 continue
         x = syn['seq']
 
@@ -110,6 +109,7 @@ class SocketTCP:
                         new_socket.conected = True
                         return new_socket, new_socket.my_address
             except socket.timeout:
+                self._log(f"RX: TIMEOUT")
                 continue
 
     # Client
