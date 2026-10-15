@@ -110,7 +110,6 @@ class SocketTCP:
                         new_socket.conected = True
                         return new_socket, new_socket.my_address
             except socket.timeout:
-                self._log(f"RX: TIMEOUT")
                 continue
 
     # Client
