@@ -5,6 +5,7 @@ address = ("127.0.0.1", 8000)
 # SERVER
 server_socketTCP = SocketTCP.SocketTCP()
 server_socketTCP.bind(address)
+server_socketTCP.debug = True
 connection_socketTCP, new_address = server_socketTCP.accept()
 
 # test 1

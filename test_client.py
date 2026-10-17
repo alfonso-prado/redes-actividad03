@@ -4,6 +4,7 @@ address = ("127.0.0.1", 8000)
 
 # CLIENT
 client_socketTCP = SocketTCP.SocketTCP()
+client_socketTCP.debug = True
 client_socketTCP.connect(address)
 print("Cliente conectado.")
 

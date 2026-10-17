@@ -4,11 +4,12 @@ import sys
 host = sys.argv[1]
 puerto = int(sys.argv[2])
 
-client_socketTCP = SocketTCP.SocketTCP()
-client_socketTCP.connect((host, puerto))
+client = SocketTCP.SocketTCP()
+client.connect((host, puerto))
+client.debug = True
 
 data = sys.stdin.buffer.read()
 
-client_socketTCP.send(data)
+client.send(data)
 
-client_socketTCP.close()
+client.close()

@@ -1,6 +1,7 @@
 import socket
 import random
 import time
+import os
 
 class SocketTCP:
     TIMEOUT = 1 
@@ -26,7 +27,7 @@ class SocketTCP:
 
         # debug
         self.role = None 
-        self.debug = True
+        self.debug = False
 
     # Server
     def bind(self, address):
@@ -37,6 +38,7 @@ class SocketTCP:
     # Client
     def connect(self, address):
         self.role = 'client'
+        self._clear_log()
         self.remote_address = address
 
         x = random.randint(0, 100)
@@ -66,6 +68,7 @@ class SocketTCP:
 
     # Server
     def accept(self):
+        self._clear_log()
         # RX: SYN, seq=x
         while True:
             try:
@@ -81,6 +84,7 @@ class SocketTCP:
         host = self.my_address[0]
         new_socket.bind((host, 0)) # con 0 le digo al sistema que me de un puerto libre
         new_socket.remote_address = receiver_address # guardamos la direccion del cliente en el nuevo socket
+        new_socket.debug = self.debug
 
         # Crea segmento SYN+ACK, seq=x+1
         syn_ack = {
@@ -448,3 +452,11 @@ class SocketTCP:
                 flags = f"NO FLAGS"
         
             self._log(f"RX: {flags:<12} seq={sd['seq']:<11} bytes={len(sd['data'])}")
+
+    def _clear_log(self):
+        filename = f"log_{self.role}.txt"
+
+        if self.debug:
+            open(filename, 'w').close()
+        elif os.path.exists(filename):
+            os.remove(filename)

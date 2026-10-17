@@ -3,6 +3,7 @@ import sys
 
 server = SocketTCP.SocketTCP()
 server.bind(('localhost', 8000))
+server.debug = True
 
 connection, address = server.accept()
 
