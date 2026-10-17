@@ -4,7 +4,7 @@ import time
 import os
 
 class SocketTCP:
-    TIMEOUT = 1 
+    TIMEOUT = 0.5 
     MAX_DATA_SIZE = 16 # Máximo de datos por segmento, 16 bytes
     HEADER_SIZE = 7 # 3 flags de 1 byte + SEQ de 4 bytes.
     SEGMENT_SIZE = HEADER_SIZE + MAX_DATA_SIZE
