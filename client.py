@@ -5,8 +5,8 @@ host = sys.argv[1]
 puerto = int(sys.argv[2])
 
 client = SocketTCP.SocketTCP()
-client.connect((host, puerto))
 client.debug = True
+client.connect((host, puerto))
 
 data = sys.stdin.buffer.read()
 

@@ -299,9 +299,6 @@ class SocketTCP:
 
     # Client
     def _send_message_length(self, message: bytes):
-        # Obs: El tamaño máximo teórico de un archivo en bytes que se puede enviar 
-        # en esta implementación de TCP sería de 2^128 - 1, porque la parte 
-        # del segmento donde van los datos es de un tamaño de 16 bytes = 16 * 8 bit = 128 bits.
         message_length = len(message).to_bytes(16, 'big') 
 
         segment = {

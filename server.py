@@ -11,7 +11,7 @@ while True:
     data = connection.recv(19)
     sys.stdout.buffer.write(data)
 
-    if len(data) < 19:
+    if connection.remaining_bytes is None:
         break
 
 connection.recv_close()
